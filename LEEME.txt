@@ -1,0 +1,12 @@
+CUENTAS CLARAS - archivos de la app (sube estos archivos, NO el zip)
+
+Archivos: index.html, manifest.json, sw.js y 4 imagenes .png
+
+GITHUB PAGES (gratis):
+1. Crea cuenta en github.com. Toca "New repository". Nombre: cuentas-claras. Publico. Create.
+2. Toca "uploading an existing file". Arrastra los archivos descomprimidos (no el zip). Commit changes.
+3. Settings > Pages > Source: Deploy from a branch > main / (root) > Save.
+4. En 1 o 2 minutos tu app queda en https://TU-USUARIO.github.io/cuentas-claras/
+5. Abrela en Chrome en el celular, toca los tres puntos y "Instalar app".
+
+Tus datos se guardan en el celular, no en GitHub. Para pasar datos de otra version: Ajustes > Respaldo.
