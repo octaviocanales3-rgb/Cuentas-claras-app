@@ -222,6 +222,26 @@ main { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
 .switch.on { background: var(--accent); }
 .switch.on::after { transform: translateX(18px); }
 
+/* Análisis */
+.per { font-size: 18px; font-weight: 700; color: var(--muted); letter-spacing: 0; }
+.alw { margin-top: 14px; }
+.alw-h { display: flex; justify-content: space-between; gap: 10px; font-size: 14.5px; }
+.alw-h span { font-weight: 700; white-space: nowrap; }
+.ind { display: flex; align-items: center; gap: 10px; padding: 11px 0; }
+.ind + .ind { border-top: 1px solid var(--line); }
+.ind-n { flex: 1; font-weight: 600; min-width: 0; }
+.ind-v { font-weight: 800; text-align: right; }
+.alert.ok { background: var(--accent-soft); } .alert.ok i { background: var(--accent); }
+.alert.na { background: var(--soft); } .alert.na i { background: var(--muted); }
+.tips .alert + .alert { margin-top: 8px; }
+.trow { display: flex; align-items: center; gap: 10px; padding: 10px 0; }
+.trow + .trow { border-top: 1px solid var(--line); }
+.tn { flex: 1; font-weight: 700; min-width: 0; }
+.tv { font-weight: 800; font-size: 14px; white-space: nowrap; }
+.tv.up { color: var(--exp); } .tv.down { color: var(--inc); }
+.split { display: flex; height: 14px; border-radius: 99px; overflow: hidden; background: var(--soft); margin: 2px 0 8px; }
+.split i { display: block; height: 100%; }
+
 /* Formularios y botones */
 .btn { border: 0; border-radius: 14px; padding: 12px 18px; font-weight: 700; min-height: 46px; }
 .btn.primary { background: var(--ink); color: var(--bg); }
@@ -319,7 +339,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
     <button data-act="tab" data-tab="inicio"><svg viewBox="0 0 24 24"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1z"/></svg>Inicio</button>
     <button data-act="tab" data-tab="movs"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Movimientos</button>
     <button class="add-btn" data-act="add" aria-label="Agregar movimiento"><i><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></i>Agregar</button>
-    <button data-act="tab" data-tab="graficos"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Gráficos</button>
+    <button data-act="tab" data-tab="graficos"><svg viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>Análisis</button>
     <button data-act="tab" data-tab="planes"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><path d="M12 4v1.5M12 18.5V20M4 12h1.5M18.5 12H20"/></svg>Planes</button>
   </div>
 </nav>
@@ -388,7 +408,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
 
   var now = new Date();
   var vy = now.getFullYear(), vm = now.getMonth();
-  var tab = 'inicio', planTab = 'metas', movFilter = 'todos';
+  var tab = 'inicio', planTab = 'metas', movFilter = 'todos', anaTab = 'diag';
   var donutMode = 'gasto', donutSel = -1, trendN = 6, trendSel = '', hmSel = 0;
   var animOnce = true, pc = null;
 
@@ -598,12 +618,12 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
       '<span class="tx-amt ' + t.type + '">' + (t.type === 'ingreso' ? '+' : '\u2212') + money(t.nio) + '</span></button>';
   }
   function emptyBox(title, text) { return '<div class="empty"><strong>' + esc(title) + '</strong>' + esc(text) + '</div>'; }
-  function ringSvg(p, color, label) {
+  function ringSvg(p, color, label, txt) {
     var r = 15.9155, a = Math.max(0, Math.min(100, p));
     return '<svg class="ring" viewBox="0 0 42 42" role="img" aria-label="' + esc(label) + '">' +
       '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="var(--soft)" stroke-width="5"/>' +
       '<circle cx="21" cy="21" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + a.toFixed(2) + ' ' + (100 - a).toFixed(2) + '" transform="rotate(-90 21 21)"/>' +
-      '<text x="21" y="24" font-size="8.5">' + Math.round(p) + '%</text></svg>';
+      '<text x="21" y="24" font-size="8.5">' + (txt != null ? esc(txt) : Math.round(p) + '%') + '</text></svg>';
   }
 
   /* ---------- Gráfica: ritmo del mes ---------- */
@@ -762,6 +782,205 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
     return svg + '<p class="readout" aria-live="polite">' + esc(rd) + '</p><div class="keys"><span class="sq" style="--c:var(--inc)">Ingresos</span><span class="sq" style="--c:var(--exp)">Gastos</span></div>';
   }
 
+  /* ---------- Análisis y diagnóstico ---------- */
+  var NEEDS = ['Vivienda', 'Servicios', 'Comida', 'Transporte', 'Salud', 'Estudios'];
+  var SMALL = 200;
+  function prevMonths(n) {
+    var out = [], i;
+    for (i = 1; i <= n; i++) { var m = vm - i, y = vy; while (m < 0) { m += 12; y--; } out.push({ y: y, m: m, key: ymKey(y, m) }); }
+    return out;
+  }
+  function hasData(key) { return state.tx.some(function (t) { return t.date.slice(0, 7) === key; }); }
+  function spendUpTo(key, dayMax) {
+    var o = { total: 0, byCat: {} };
+    txOfMonth(key).forEach(function (t) {
+      if (t.type !== 'gasto' || +t.date.slice(8, 10) > dayMax) return;
+      o.total += t.nio; o.byCat[t.cat] = (o.byCat[t.cat] || 0) + t.nio;
+    });
+    return o;
+  }
+  function goalMonthly(g) {
+    if (!g.deadline) return 0;
+    var left = Math.max(0, g.target - saved(g.id)), days = diffDays(todayStr(), g.deadline);
+    if (left <= 0 || days < 0) return 0;
+    return left / Math.max(1, Math.ceil(days / 30.4));
+  }
+  function pctTxt(x) { return Math.round(x * 100) + '%'; }
+
+  function analysis() {
+    var P = paceData(), key = ymKey(vy, vm), N = P.N, txs = txOfMonth(key), s = summary(txs), i;
+    var prev = prevMonths(3).filter(function (p) { return hasData(p.key); });
+    var avgInc = 0, avgExp = 0;
+    prev.forEach(function (p) { var ps = summary(txOfMonth(p.key)); avgInc += ps.inc / prev.length; avgExp += ps.exp / prev.length; });
+    var income = s.inc > 0 ? s.inc : avgInc, incomeSrc = s.inc > 0 ? 'month' : avgInc > 0 ? 'avg' : '';
+    var fixedMonthly = 0, goalsMonthly = 0, varExp = 0;
+    state.fixed.forEach(function (f) { if (f.active) fixedMonthly += toNio(f.amount, f.cur); });
+    state.goals.forEach(function (g) { goalsMonthly += goalMonthly(g); });
+    txs.forEach(function (t) { if (t.type === 'gasto' && !t.fixedId) varExp += t.nio; });
+    var expEnd = P.proj != null ? P.proj : s.exp;
+    var A = { P: P, s: s, prev: prev, income: income, incomeSrc: incomeSrc, avgExp: avgExp, fixedMonthly: fixedMonthly, goalsMonthly: goalsMonthly, expEnd: expEnd, varExp: varExp };
+
+    /* Cuánto puedes gastar (mes actual) */
+    if (P.cur) {
+      var debtsDue = P.calc ? P.calc.debtsDue : 0, fixedPending = P.calc ? P.calc.fixedPending : 0;
+      var incLimit = income > 0 ? income - goalsMonthly - debtsDue : null, b = state.budget.total, limit = null, src = '';
+      if (b > 0) { limit = b; src = 'budget'; } else if (incLimit !== null) { limit = incLimit; src = 'income'; }
+      if (limit !== null) {
+        var committed = s.exp + fixedPending, available = limit - committed, daysLeft = N - now.getDate() + 1;
+        var limited = {}, reservedLim = 0, cats = [];
+        CATS_G.forEach(function (c) { var l = state.budget.cats[c]; if (l > 0) { limited[c] = l - (s.byCat[c] || 0); reservedLim += Math.max(0, limited[c]); } });
+        var pool = Math.max(0, available - reservedLim), free = 0;
+        Object.keys(limited).forEach(function (c) { cats.push({ name: c, left: limited[c], spent: s.byCat[c] || 0, lim: true }); });
+        if (prev.length) {
+          /* Lo que normalmente gastas en cada categoría al mes, menos lo que ya llevas; se ajusta al dinero disponible */
+          var avgCat = {}, need = {}, totNeed = 0;
+          prev.forEach(function (p) {
+            txOfMonth(p.key).forEach(function (t) {
+              if (t.type === 'gasto' && !t.fixedId && !(t.cat in limited)) avgCat[t.cat] = (avgCat[t.cat] || 0) + t.nio / prev.length;
+            });
+          });
+          Object.keys(avgCat).forEach(function (c) { var n = Math.max(0, avgCat[c] - (s.byCat[c] || 0)); if (n > 0) { need[c] = n; totNeed += n; } });
+          var factor = totNeed > pool ? pool / totNeed : 1;
+          Object.keys(need).forEach(function (c) { cats.push({ name: c, left: need[c] * factor, spent: s.byCat[c] || 0, avg: avgCat[c] }); });
+          free = Math.max(0, pool - totNeed * factor);
+        } else {
+          var shareBase = {}, shareTot = 0;
+          txs.forEach(function (t) { if (t.type === 'gasto' && !t.fixedId && !(t.cat in limited)) { shareBase[t.cat] = (shareBase[t.cat] || 0) + t.nio; shareTot += t.nio; } });
+          if (shareTot) Object.keys(shareBase).forEach(function (c) { cats.push({ name: c, left: pool * shareBase[c] / shareTot, spent: s.byCat[c] || 0 }); });
+        }
+        cats.sort(function (x, y) { return y.left - x.left; });
+        A.allow = { limit: limit, src: src, incLimit: incLimit, available: available, daysLeft: daysLeft, perDay: available / daysLeft,
+          debtsDue: debtsDue, fixedPending: fixedPending, cats: cats.slice(0, 8), fromPrev: prev.length > 0, free: free };
+      }
+    }
+
+    /* Tendencias contra meses anteriores, a la misma altura del mes */
+    var dayCut = P.cur ? now.getDate() : N;
+    if (prev.length) {
+      var curS = spendUpTo(key, dayCut), base = { total: 0, byCat: {} }, names = {}, rows = [];
+      prev.forEach(function (p) {
+        var o = spendUpTo(p.key, Math.min(dayCut, daysIn(p.y, p.m)));
+        base.total += o.total / prev.length;
+        Object.keys(o.byCat).forEach(function (c) { base.byCat[c] = (base.byCat[c] || 0) + o.byCat[c] / prev.length; });
+      });
+      Object.keys(curS.byCat).concat(Object.keys(base.byCat)).forEach(function (c) { names[c] = 1; });
+      var thr = Math.max(100, base.total * 0.05);
+      Object.keys(names).forEach(function (c) {
+        var cu = curS.byCat[c] || 0, ba = base.byCat[c] || 0, d = cu - ba;
+        if (Math.abs(d) >= thr) rows.push({ name: c, diff: d, pct: ba > 0 ? d / ba : null });
+      });
+      rows.sort(function (x, y) { return Math.abs(y.diff) - Math.abs(x.diff); });
+      A.trend = { dayCut: dayCut, cur: curS.total, base: base.total, rows: rows.slice(0, 6), months: prev.length };
+    }
+
+    /* Gastos hormiga */
+    var small = txs.filter(function (t) { return t.type === 'gasto' && !t.fixedId && t.nio <= SMALL; });
+    if (small.length) {
+      var hs = 0, hc = {};
+      small.forEach(function (t) { hs += t.nio; hc[t.cat] = (hc[t.cat] || 0) + t.nio; });
+      A.ant = { count: small.length, sum: hs, share: varExp > 0 ? hs / varExp : 0, top: Object.keys(hc).sort(function (a, b2) { return hc[b2] - hc[a]; })[0] };
+    }
+
+    /* Día de la semana con más gasto (últimos 90 días) */
+    var end = new Date(now.getFullYear(), now.getMonth(), now.getDate()), start = new Date(end), first = null;
+    start.setDate(start.getDate() - 89);
+    state.tx.forEach(function (t) { if (t.type === 'gasto' && !t.fixedId && (!first || t.date < first)) first = t.date; });
+    if (first && pdate(first) > start) start = pdate(first);
+    var span = Math.round((end - start) / 86400000) + 1;
+    if (first && span >= 14) {
+      var occ = [0, 0, 0, 0, 0, 0, 0], sumW = [0, 0, 0, 0, 0, 0, 0], tot = 0, dt, best = -1, bestV = 0;
+      for (dt = new Date(start); dt <= end; dt.setDate(dt.getDate() + 1)) occ[dt.getDay()]++;
+      state.tx.forEach(function (t) {
+        if (t.type !== 'gasto' || t.fixedId) return;
+        var td = pdate(t.date);
+        if (td < start || td > end) return;
+        sumW[td.getDay()] += t.nio; tot += t.nio;
+      });
+      var avgDay = tot / span;
+      for (i = 0; i < 7; i++) { var v = occ[i] ? sumW[i] / occ[i] : 0; if (v > bestV) { bestV = v; best = i; } }
+      if (best >= 0 && avgDay > 0 && bestV > avgDay * 1.3) A.weekday = { day: best, avg: bestV, overall: avgDay };
+    }
+
+    /* Indicadores y consejos */
+    var ind = [], tips = [];
+    var add = function (name, value, lvl, tip, pri) { ind.push({ name: name, value: value, lvl: lvl }); if (tip) tips.push({ lvl: lvl, text: tip, pri: pri || 0 }); };
+    var incNote = incomeSrc === 'avg' ? ' (con tu ingreso promedio)' : '';
+    if (income > 0) {
+      var sr = (income - expEnd) / income, l1 = sr >= 0.2 ? 'ok' : sr >= 0.1 ? 'warn' : 'bad';
+      add(P.cur ? 'Ahorro proyectado' : 'Ahorro del mes', pctTxt(sr), l1,
+        l1 === 'ok' ? 'Ahorras el ' + pctTxt(sr) + ' de tus ingresos' + incNote + '. Pasa ese dinero a tus metas para que no se gaste.' :
+        l1 === 'warn' ? 'Ahorras el ' + pctTxt(sr) + incNote + '. Para llegar al 20% recomendado, recorta ' + money(0.2 * income - (income - expEnd)) + ' este mes.' :
+        (sr < 0 ? 'Vas a gastar ' + money(expEnd - income) + ' más de lo que te entra' + incNote + '.' : 'Ahorras solo el ' + pctTxt(sr) + incNote + '.') +
+        ' Para ahorrar al menos el 10%, recorta ' + money(0.1 * income - (income - expEnd)) + '.', l1 === 'bad' ? 3 : l1 === 'warn' ? 2 : -1);
+    } else add('Ahorro del mes', 'Sin datos', 'na', 'Registra tus ingresos para medir cuánto ahorras.', 0);
+
+    if (fixedMonthly > 0 && income > 0) {
+      var fr = fixedMonthly / income, l2 = fr <= 0.5 ? 'ok' : fr <= 0.7 ? 'warn' : 'bad';
+      add('Gastos fijos sobre ingresos', pctTxt(fr), l2, l2 === 'ok' ? null : 'Tus gastos fijos se llevan el ' + pctTxt(fr) + ' de tus ingresos. Revisa suscripciones, plan de celular o servicios que puedas bajar.', l2 === 'bad' ? 3 : 2);
+    } else if (!fixedMonthly) add('Gastos fijos sobre ingresos', 'Sin datos', 'na', 'Registra tus gastos fijos en Planes para saber cuánto de tu ingreso ya está comprometido.', 0);
+
+    var owe = 0, overdue = 0, t0 = todayStr();
+    state.debts.forEach(function (d) { if (d.dir !== 'debo') return; var p = pending(d); owe += p; if (p > 0.005 && d.due && d.due < t0) overdue++; });
+    if (owe <= 0.005) add('Deudas', 'Sin deudas', 'ok', null);
+    else {
+      var dr = income > 0 ? owe / income : null, l3 = overdue ? 'bad' : dr === null ? 'warn' : dr <= 0.3 ? 'ok' : dr <= 1 ? 'warn' : 'bad';
+      add('Deudas', money(owe) + (dr !== null ? ' (' + pctTxt(dr) + ' de tu ingreso)' : ''), l3,
+        overdue ? 'Tienes ' + overdue + (overdue === 1 ? ' deuda vencida' : ' deudas vencidas') + '. Págalas antes de cualquier gasto que no sea esencial.' :
+        l3 === 'ok' ? null : 'Debes ' + money(owe) + '. Destina una cantidad fija cada mes a pagar, empezando por la deuda más pequeña o la que cobre intereses.', overdue ? 4 : 2);
+    }
+
+    if (state.budget.total > 0) {
+      var br = expEnd / state.budget.total, l4 = br <= 1 ? 'ok' : br <= 1.1 ? 'warn' : 'bad';
+      add(P.cur ? 'Presupuesto proyectado' : 'Presupuesto usado', pctTxt(br), l4, l4 === 'ok' ? null :
+        (P.cur ? 'A este ritmo te pasarías del presupuesto por ' : 'Te pasaste del presupuesto por ') + money(expEnd - state.budget.total) + '.' +
+        (A.allow && A.allow.perDay > 0 ? ' Para cumplirlo, gasta como máximo ' + money(A.allow.perDay) + ' por día lo que queda del mes.' : ''), l4 === 'bad' ? 3 : 2);
+    } else add('Presupuesto', 'Sin definir', 'warn', 'Define un presupuesto mensual en Ajustes. Es la base para saber cuánto puedes gastar cada día.', 1);
+
+    if (!state.goals.length) add('Metas de ahorro', 'Sin metas', 'warn', 'Crea una meta de ahorro en Planes. Un buen inicio es un fondo de emergencia.', 1);
+    else {
+      var withD = 0, onTrack = 0;
+      state.goals.forEach(function (g) {
+        if (!g.deadline || !g.created) return;
+        var tt = diffDays(g.created, g.deadline);
+        if (tt <= 0) return;
+        withD++;
+        var el = Math.min(tt, Math.max(0, diffDays(g.created, todayStr())));
+        if (saved(g.id) >= g.target * el / tt * 0.9) onTrack++;
+      });
+      if (!withD) add('Metas de ahorro', state.goals.length + (state.goals.length === 1 ? ' meta' : ' metas'), 'ok', null);
+      else {
+        var l5 = onTrack === withD ? 'ok' : onTrack > 0 ? 'warn' : 'bad';
+        add('Metas al día', onTrack + ' de ' + withD, l5, l5 === 'ok' ? null : 'Vas atrasado en ' + (withD - onTrack) + (withD - onTrack === 1 ? ' meta' : ' metas') + '. Abona ' + money(goalsMonthly) + ' al mes en total para llegar a tiempo.', 2);
+      }
+    }
+
+    var totSaved = 0;
+    state.goals.forEach(function (g) { totSaved += saved(g.id); });
+    var monthlyExp = avgExp > 0 ? avgExp : expEnd;
+    if (monthlyExp > 0) {
+      var mc = totSaved / monthlyExp, l6 = mc >= 3 ? 'ok' : mc >= 1 ? 'warn' : 'bad';
+      add('Colchón de ahorro', mc.toFixed(1) + ' meses', l6, l6 === 'ok' ? null : 'Tu ahorro cubre ' + mc.toFixed(1) + ' meses de gastos. Lo recomendado es tener de 3 a 6 meses para emergencias.', l6 === 'bad' ? 2 : 1);
+    }
+
+    if (A.ant && varExp > 0) {
+      var l7 = A.ant.share <= 0.1 ? 'ok' : A.ant.share <= 0.2 ? 'warn' : 'bad';
+      add('Gastos hormiga', pctTxt(A.ant.share) + ' de tus variables', l7, l7 === 'ok' ? null : A.ant.count + ' gastos pequeños (de ' + money(SMALL) + ' o menos) suman ' + money(A.ant.sum) + ', sobre todo en ' + A.ant.top + '. Ponles un tope semanal.', l7 === 'bad' ? 2 : 1);
+    }
+
+    var scored = ind.filter(function (x) { return x.lvl !== 'na'; }), pts = { ok: 100, warn: 60, bad: 20 };
+    A.score = scored.length ? Math.round(scored.reduce(function (a, x) { return a + pts[x.lvl]; }, 0) / scored.length) : null;
+    tips.sort(function (a, b2) { return b2.pri - a.pri; });
+    A.ind = ind; A.tips = tips.slice(0, 4);
+
+    /* Regla 50/30/20 */
+    if (income > 0 && s.exp > 0) {
+      var nd = 0, wt = 0, k = expEnd / s.exp;
+      Object.keys(s.byCat).forEach(function (c) { if (NEEDS.indexOf(c) > -1) nd += s.byCat[c]; else wt += s.byCat[c]; });
+      A.rule = { needs: nd * k / income, wants: wt * k / income, save: (income - expEnd) / income };
+    }
+    return A;
+  }
+
   /* ---------- Vistas ---------- */
   function viewInicio() {
     var key = ymKey(vy, vm), txs = txOfMonth(key), s = summary(txs), b = state.budget.total, th = state.threshold / 100, P = paceData(), hero;
@@ -816,7 +1035,14 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
         '<div class="progress" style="margin:6px 0 0"><i style="width:' + Math.min(100, sp / lim * 100) + '%;--c:' + col + '"></i></div></div>';
     }).join('');
     var lims = catRows ? '<section class="card"><div class="card-head" style="margin-bottom:0"><h2>Límites por categoría</h2></div>' + catRows + '</section>' : '';
-    return '<div class="cols">' + hero + al + stats + chart + goals + lims + recent + '</div>';
+    var AA = analysis(), mini = '';
+    if (AA.allow) {
+      var aw = AA.allow;
+      mini = '<section class="card"><div class="card-head" style="margin-bottom:6px"><h2>Para llegar bien a fin de mes</h2><button class="btn ghost sm" data-act="gotodiag">Ver análisis</button></div>' +
+        (aw.available > 0 ? '<div style="font-size:24px;font-weight:800;letter-spacing:-0.02em">' + money(aw.perDay) + '<span class="per" style="font-size:15px"> por día</span></div><p class="hint">' + esc(money(aw.available) + ' en total para los ' + aw.daysLeft + ' días que quedan, contando hoy.') + '</p>' :
+          '<div style="font-size:20px;font-weight:800;color:var(--bad)">Sin margen: vas ' + money(-aw.available) + ' por encima</div>') + '</section>';
+    }
+    return '<div class="cols">' + hero + al + stats + mini + chart + goals + lims + recent + '</div>';
   }
 
   function viewMovs() {
@@ -851,6 +1077,88 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
     var top = txOfMonth(ymKey(vy, vm)).filter(function (t) { return t.type === 'gasto'; }).sort(function (a, b) { return b.nio - a.nio; }).slice(0, 5);
     var topc = '<section class="card top5"><div class="card-head" style="margin-bottom:4px"><h2>Mayores gastos del mes</h2></div>' + (top.length ? top.map(function (t) { return txRow(t); }).join('') : emptyBox('Sin gastos todavía', 'Aquí aparecerán los cinco más grandes.')) + '</section>';
     return '<div class="cols">' + pace + donut + heat + trend + topc + '</div>';
+  }
+
+  function viewAnalisis() {
+    var seg = '<div class="seg full" style="margin-bottom:6px">' + [['diag', 'Diagnóstico'], ['graf', 'Gráficos']].map(function (o) {
+      return '<button data-act="ana" data-a="' + o[0] + '" class="' + (anaTab === o[0] ? 'on' : '') + '">' + o[1] + '</button>';
+    }).join('') + '</div>';
+    return seg + (anaTab === 'graf' ? viewGraficos() : viewDiag());
+  }
+
+  function viewDiag() {
+    var A = analysis(), html = '', lvlTxt = { ok: 'Bien', warn: 'Atención', bad: 'Crítico', na: 'Sin datos' };
+    if (A.allow) {
+      var al = A.allow, ok = al.available > 0;
+      var srcTxt = al.src === 'budget' ? 'Según tu presupuesto de ' + money(al.limit) + ', menos lo ya gastado y los gastos fijos por cobrar.' :
+        'Según tus ingresos' + (A.incomeSrc === 'avg' ? ' promedio' : ' del mes') + ' (' + money(A.income) + '), menos ' +
+        (A.goalsMonthly > 0 ? money(A.goalsMonthly) + ' para tus metas, ' : '') + (al.debtsDue > 0 ? money(al.debtsDue) + ' para deudas que vencen, ' : '') +
+        'lo ya gastado y los gastos fijos por cobrar.';
+      var warn = al.src === 'budget' && al.incLimit !== null && al.limit > al.incLimit ?
+        '<div class="alert warn" style="margin-top:10px"><i></i><span>' + esc('Tu presupuesto (' + money(al.limit) + ') es mayor que lo que te deja tu ingreso después de metas y deudas (' + money(al.incLimit) + ').') + '</span></div>' : '';
+      var catsHtml = al.cats.map(function (c) {
+        var tot = c.spent + Math.max(0, c.left), p = tot > 0 ? c.spent / tot * 100 : 0, col = c.left < 0 ? 'var(--bad)' : colorOf(c.name);
+        return '<div class="alw"><div class="alw-h"><b>' + esc(c.name) + '</b><span>' + (c.left >= 0 ? money(c.left) + ' más' : 'Te pasaste ' + money(-c.left)) + '</span></div>' +
+          '<div class="progress" style="margin:6px 0 4px"><i style="width:' + Math.min(100, p).toFixed(1) + '%;--c:' + col + '"></i></div>' +
+          '<div class="hint" style="margin:0">' + (c.left > 0 ? money(c.left / al.daysLeft) + ' por día. ' : '') + 'Llevas ' + money(c.spent) + (c.lim ? ' de tu límite.' : c.avg ? ' de ' + money(c.avg) + ' que gastas normalmente.' : '.') + '</div></div>';
+      }).join('');
+      html += '<section class="card hero"><p class="hero-label" style="margin-top:0">' + (ok ? 'Para llegar bien a fin de mes, puedes gastar' : 'Ya no te queda margen este mes') + '</p>' +
+        '<p class="hero-num' + (ok ? '' : ' bad') + '">' + (ok ? money(al.perDay) + '<span class="per"> por día</span>' : money(-al.available)) + '</p>' +
+        '<p class="hero-note" style="margin-top:0">' + esc(ok ? money(al.available) + ' en total para los ' + al.daysLeft + (al.daysLeft === 1 ? ' día que queda, contando hoy.' : ' días que quedan, contando hoy.') :
+          'Vas ' + money(-al.available) + ' por encima. Limita tus gastos a lo esencial hasta fin de mes.') + '</p>' +
+        '<p class="hint">' + esc(srcTxt) + '</p>' + warn +
+        (catsHtml ? '<h2 style="margin:20px 0 2px">Por categoría</h2><p class="hint" style="margin-top:0">' +
+          (al.fromPrev ? 'Según lo que normalmente gastas en cada categoría al mes, menos lo que ya llevas.' : 'Repartido según cómo vas gastando este mes.') +
+          ' Las categorías con límite usan tu límite.</p>' + catsHtml + (al.free > 1 ? '<p class="hint" style="margin-top:14px">' + esc('Te sobran ' + money(al.free) + ' sin asignar: puedes ahorrarlos o usarlos en otros gastos.') + '</p>' : '') : '') + '</section>';
+    } else if (!A.P.cur) {
+      html += '<section class="card">' + emptyBox(A.P.future ? 'Mes futuro' : 'Mes pasado', 'Cuánto puedes gastar se calcula para el mes actual. Abajo ves el diagnóstico de ' + MESES[vm] + '.') + '</section>';
+    } else {
+      html += '<section class="card">' + emptyBox('Faltan datos', 'Define un presupuesto en Ajustes o registra tus ingresos para calcular cuánto puedes gastar.') + '</section>';
+    }
+
+    var sc = A.score, scLvl = sc === null ? 'na' : sc >= 80 ? 'ok' : sc >= 60 ? 'warn' : 'bad';
+    var scTxt = sc === null ? 'Sin datos suficientes' : sc >= 80 ? 'Saludable' : sc >= 60 ? 'Aceptable' : 'En riesgo';
+    var scCol = { ok: 'var(--accent)', warn: 'var(--warn)', bad: 'var(--bad)', na: 'var(--muted)' }[scLvl];
+    var nInd = A.ind.filter(function (x) { return x.lvl !== 'na'; }).length;
+    html += '<section class="card"><div class="card-head"><h2>Diagnóstico de ' + MESES[vm] + '</h2></div>' +
+      '<div class="goal-top">' + ringSvg(sc === null ? 0 : sc, scCol, 'Puntaje de salud financiera', sc === null ? '–' : String(sc)) +
+      '<div><h3>' + scTxt + '</h3><p>' + (sc === null ? 'Registra movimientos para calcular tu puntaje.' : 'Puntaje de ' + sc + ' sobre 100, según ' + nInd + ' indicadores.') + '</p></div></div>' +
+      '<div style="margin-top:10px">' + A.ind.map(function (x) {
+        return '<div class="ind"><span class="ind-n">' + esc(x.name) + '</span><span class="ind-v">' + esc(x.value) + '</span>' + chip(x.lvl === 'na' ? 'gray' : x.lvl, lvlTxt[x.lvl]) + '</div>';
+      }).join('') + '</div></section>';
+
+    html += '<section class="card tips"><div class="card-head"><h2>Consejos para este mes</h2></div>' + (A.tips.length ? A.tips.map(function (t) {
+      return '<div class="alert ' + t.lvl + '"><i></i><span>' + esc(t.text) + '</span></div>';
+    }).join('') : emptyBox('Todo en orden', 'No hay alertas por ahora.')) + '</section>';
+
+    var tr = '';
+    if (A.trend) {
+      var T = A.trend, dlt = T.cur - T.base, ptc = T.base > 0 ? dlt / T.base : null;
+      var cmp = T.months === 1 ? 'el mes anterior' : 'los ' + T.months + ' meses anteriores';
+      tr += '<p class="hero-note" style="margin-top:0">' + esc((A.P.cur ? 'Hasta el día ' + T.dayCut + ' llevas ' : 'En ' + MESES[vm] + ' gastaste ') + money(T.cur) +
+        (T.base > 0 ? ', ' + (dlt >= 0 ? money(dlt) + ' más' : money(-dlt) + ' menos') + ' que tu promedio de ' + cmp + (A.P.cur ? ' a esta altura del mes' : '') +
+          ' (' + (ptc >= 0 ? '+' : '\u2212') + Math.abs(Math.round(ptc * 100)) + '%).' : '.')) + '</p>';
+      tr += T.rows.length ? T.rows.map(function (r) {
+        return '<div class="trow"><span class="dot" style="background:' + colorOf(r.name) + '"></span><span class="tn">' + esc(r.name) + '</span>' +
+          '<span class="tv ' + (r.diff > 0 ? 'up' : 'down') + '">' + (r.diff > 0 ? '+' : '\u2212') + money(Math.abs(r.diff)) +
+          (r.pct !== null ? ' (' + (r.pct > 0 ? '+' : '\u2212') + Math.abs(Math.round(r.pct * 100)) + '%)' : ' (nuevo)') + '</span></div>';
+      }).join('') : '<p class="hint">Ninguna categoría cambió de forma importante.</p>';
+    } else tr += '<p class="hint" style="margin-top:0">Para comparar tendencias necesito al menos un mes anterior con movimientos.</p>';
+    if (A.ant) tr += '<p class="hint" style="margin-top:12px">Gastos hormiga del mes: ' + A.ant.count + ' gastos de ' + esc(money(SMALL)) + ' o menos que suman ' + esc(money(A.ant.sum)) + ', sobre todo en ' + esc(A.ant.top) + '.</p>';
+    if (A.weekday) tr += '<p class="hint">Gastas más los ' + DIAS[A.weekday.day] + (A.weekday.day === 0 || A.weekday.day === 6 ? 's' : '') + ': ' + esc(money(A.weekday.avg)) + ' en promedio, contra ' + esc(money(A.weekday.overall)) + ' de un día normal.</p>';
+    html += '<section class="card"><div class="card-head"><h2>Tendencias de gasto</h2></div>' + tr + '</section>';
+
+    if (A.rule) {
+      var R = A.rule, w = function (x) { return Math.max(0, Math.min(100, x * 100)).toFixed(1); };
+      var rr = function (name, val, meta, l, col) { return '<div class="ind"><span class="dot" style="background:' + col + '"></span><span class="ind-n">' + name + ' <span class="muted" style="font-weight:500">(' + meta + ')</span></span><span class="ind-v">' + pctTxt(val) + '</span>' + chip(l, lvlTxt[l]) + '</div>'; };
+      html += '<section class="card"><div class="card-head"><h2>Regla 50/30/20</h2><span class="sub">' + (A.P.cur ? 'Proyección del mes' : 'Mes completo') + '</span></div>' +
+        '<div class="split"><i style="width:' + w(R.needs) + '%;background:#3B82F6"></i><i style="width:' + w(R.wants) + '%;background:#F59E0B"></i><i style="width:' + w(R.save) + '%;background:var(--accent)"></i></div>' +
+        rr('Necesidades', R.needs, 'máx. 50%', R.needs <= 0.5 ? 'ok' : R.needs <= 0.6 ? 'warn' : 'bad', '#3B82F6') +
+        rr('Deseos', R.wants, 'máx. 30%', R.wants <= 0.3 ? 'ok' : R.wants <= 0.4 ? 'warn' : 'bad', '#F59E0B') +
+        rr('Ahorro', R.save, 'mín. 20%', R.save >= 0.2 ? 'ok' : R.save >= 0.1 ? 'warn' : 'bad', 'var(--accent)') +
+        '<p class="hint">Necesidades: vivienda, servicios, comida, transporte, salud y estudios. Deseos: ocio, compras y otros gastos. Porcentajes sobre tus ingresos' + (A.incomeSrc === 'avg' ? ' promedio' : ' del mes') + '.</p></section>';
+    }
+    return '<div class="cols">' + html + '</div>';
   }
 
   function viewPlanes() {
@@ -961,7 +1269,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
     $('#btn-set').classList.toggle('on', isSet);
     $$('#seg-disp button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-c') === state.display); });
     $$('.nav [data-tab]').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === tab); });
-    var html = tab === 'inicio' ? viewInicio() : tab === 'movs' ? viewMovs() : tab === 'graficos' ? viewGraficos() : tab === 'planes' ? viewPlanes() : viewAjustes();
+    var html = tab === 'inicio' ? viewInicio() : tab === 'movs' ? viewMovs() : tab === 'graficos' ? viewAnalisis() : tab === 'planes' ? viewPlanes() : viewAjustes();
     $('#view').innerHTML = html;
     afterRender();
   }
@@ -1235,6 +1543,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); outline
     switch (act) {
       case 'tab': go(el.getAttribute('data-tab')); break;
       case 'gotometas': planTab = 'metas'; go('planes'); break;
+      case 'gotodiag': anaTab = 'diag'; go('graficos'); break;
+      case 'ana': anaTab = el.getAttribute('data-a'); animOnce = true; render(); break;
       case 'plan': planTab = el.getAttribute('data-p'); render(); break;
       case 'prev': vm--; if (vm < 0) { vm = 11; vy--; } animOnce = true; donutSel = -1; hmSel = 0; render(); break;
       case 'next': vm++; if (vm > 11) { vm = 0; vy++; } animOnce = true; donutSel = -1; hmSel = 0; render(); break;
